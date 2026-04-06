@@ -157,7 +157,6 @@ class LoginHelper:
         self._detected_api_url = None
         self._detected_dept_id = None
         self._detected_class_name = None
-        self._api_locked = False
         self._listening_active = False
         self._skip_count = 0
 
@@ -192,10 +191,6 @@ class LoginHelper:
     @property
     def detected_dept_id(self):
         return self._detected_dept_id
-
-    @property
-    def api_locked(self):
-        return self._api_locked
 
     def _find_element(self, page, selector_key: str, timeout=5000):
         """Thử từng selector fallback cho đến khi tìm được."""
@@ -331,22 +326,30 @@ class LoginHelper:
     def start_listening(self):
         """Bắt đầu lắng nghe request API lớp. Gọi sau khi login thành công."""
         self._listening_active = True
-        self._api_locked = False
         self._detected_api_url = None
         self._detected_dept_id = None
         self._skip_count = 0
         self.log("📡 Đang lắng nghe request API lớp...")
         self.log("👉 Vui lòng click vào lớp cần upload trên trình duyệt")
 
+    def pause_listening(self):
+        """Tạm dừng nhận diện (khi đang chạy tiến trình)."""
+        self._listening_active = False
+        self.log("⏸ Tạm dừng nhận diện lớp trên trình duyệt.")
+
+    def resume_listening(self):
+        """Tiếp tục nhận diện."""
+        self._listening_active = True
+        self.log("▶ Tiếp tục nhận diện lớp trên trình duyệt.")
+
     def reset_detection(self):
         """Reset để detect lại lớp khác."""
-        self._api_locked = False
         self._detected_api_url = None
         self._detected_dept_id = None
         self._detected_class_name = None
         self._skip_count = 0
         self._listening_active = True
-        self.log("🔄 Đã reset — sẵn sàng detect lớp mới")
+        self.log("🔄 Đã reset — sẵn sàng nhận diện lớp mới")
         self.log("👉 Vui lòng click vào lớp cần upload trên trình duyệt")
 
     def _on_network_request(self, request):
@@ -355,11 +358,9 @@ class LoginHelper:
         - Phải có staff/list
         - Phải có deptList
         - deptList phải chứa đúng 1 ID
-        - Chưa bị lock
+        - Cập nhật liên tục theo URL cuối cùng
         """
         if not self._listening_active:
-            return
-        if self._api_locked:
             return
 
         try:
@@ -388,11 +389,14 @@ class LoginHelper:
                 self.log(f"ℹ Bỏ qua: deptList có {len(dept_ids)} ID (chỉ chấp nhận 1)")
                 return
 
-            # RULE 3+4: Detect thành công → lock
+            # RULE 3+4: Cập nhật liên tục URL cuối cùng
             dept_id = dept_ids[0]
-            self._detected_api_url = url
-            self._detected_dept_id = dept_id
-            self._api_locked = True
+            
+            # Ghi nhận URL mới và reset class name để response handler lấy tên lớp mới
+            if self._detected_api_url != url:
+                self._detected_api_url = url
+                self._detected_dept_id = dept_id
+                self._detected_class_name = None
 
             # Extract session from request cookies (thread-safe)
             jsessionid = None
@@ -407,9 +411,8 @@ class LoginHelper:
             except Exception:
                 pass
 
-            self.log(f"🎯 Phát hiện request hợp lệ!")
+            self.log(f"🎯 Đã cập nhật API lớp mới!")
             self.log(f"📌 deptId: {dept_id}")
-            self.log(f"🔒 Đã khóa API lớp — deptList=[{dept_id}]")
             self.log("⏳ Đang chờ response để lấy tên lớp...")
 
         except Exception as e:
@@ -420,8 +423,6 @@ class LoginHelper:
         Bắt response của request đã detect.
         Trích tên lớp từ dữ liệu học sinh và notify GUI.
         """
-        if not self._api_locked:
-            return
         if not self._detected_api_url:
             return
         # Chỉ xử lý response của URL đã detect (và chưa có class_name)

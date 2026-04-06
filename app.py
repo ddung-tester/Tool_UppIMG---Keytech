@@ -323,6 +323,7 @@ class FaceUploadApp(ctk.CTk):
             row=1, column=0, padx=(8, 4), pady=3, sticky="w")
         self.entry_username = ctk.CTkEntry(parent, placeholder_text="Tên đăng nhập", width=200)
         self.entry_username.grid(row=1, column=1, padx=0, pady=3, sticky="w")
+        self.entry_username.bind("<Return>", lambda e: self._on_login())
 
         # Buttons
         btn_frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -411,7 +412,7 @@ class FaceUploadApp(ctk.CTk):
         self.btn_check_api.grid(row=0, column=0, padx=(0, 6))
 
         self.btn_reset_detect = ctk.CTkButton(
-            act_frame, text="🔄 Detect lại lớp", width=110, height=32,
+            act_frame, text="🔄 Nhận diện lại lớp", width=140, height=32,
             fg_color="#555555", hover_color="#444444",
             command=self._on_reset_detect,
             state="disabled",
@@ -595,14 +596,14 @@ class FaceUploadApp(ctk.CTk):
                 self.entry_class_name.insert(0, class_name)
 
             class_display = f" | Lớp: {class_name}" if class_name else ""
-            self._log(f"🎯 Tự động nhận diện thành công! deptId: {dept_id}{class_display}")
+            self._log(f"🎯 Đã tự động cập nhật lớp! deptId: {dept_id}{class_display}")
             self._log("👉 API URL đã được điền. Bạn có thể Kiểm tra & Upload ngay.")
 
         # Schedule UI update on main thread (callback comes from Playwright thread)
         self.after(0, _update)
 
     def _on_reset_detect(self):
-        """Reset listener để detect lớp khác."""
+        """Reset listener để nhận diện lớp khác."""
         if not self._login_helper or not self._login_helper.is_browser_open:
             self._log("⚠ Browser không mở.")
             return
@@ -726,6 +727,9 @@ class FaceUploadApp(ctk.CTk):
         self._results = []
         self._pending = []
 
+        if self._login_helper:
+            self._login_helper.pause_listening()
+
         self.btn_start.configure(state="disabled")
         self.btn_stop.configure(state="normal")
         self.progress_bar.set(0)
@@ -789,11 +793,16 @@ class FaceUploadApp(ctk.CTk):
                  f"⏳ {pending_count} | ❌ {counter.get('not_found', 0)}"
         )
 
-        if pending_count > 0:
+        if pending_count > 0 and not self._stop_flag:
             self._log(f"\n⏳ Có {pending_count} mục chờ xác nhận...")
             self.after(300, self._open_pending_dialog)
         else:
-            self._log("✅ Hoàn tất — không có mục pending.")
+            if self._stop_flag:
+                self._log("⛔ Đã dừng.")
+            else:
+                self._log("✅ Hoàn tất — không có mục pending.")
+            if self._login_helper:
+                self._login_helper.resume_listening()
 
     # ===================================================
     # PENDING DIALOG
@@ -809,6 +818,10 @@ class FaceUploadApp(ctk.CTk):
         selected = [p for p in pending_items if p.get('is_selected') and p.get('selected_student')]
         if not selected:
             self._log("ℹ Không có mục nào được chọn. Kết thúc.")
+            self._running = False
+            self.btn_start.configure(state="normal")
+            if self._login_helper:
+                self._login_helper.resume_listening()
             return
 
         self._running = True
@@ -841,6 +854,9 @@ class FaceUploadApp(ctk.CTk):
         self._running = False
         self.btn_start.configure(state="normal")
         self.btn_stop.configure(state="disabled")
+
+        if self._login_helper:
+            self._login_helper.resume_listening()
 
         counter = Counter(r['status'] for r in self._results)
         self._log("─" * 55)
