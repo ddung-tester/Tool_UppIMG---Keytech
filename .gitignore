@@ -1,0 +1,13 @@
+# build
+dist/
+build/
+
+# python
+__pycache__/
+*.pyc
+
+# playwright
+.playwright/
+
+# env
+.env
