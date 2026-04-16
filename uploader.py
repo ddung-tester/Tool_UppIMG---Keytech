@@ -42,7 +42,7 @@ SAFE_RULES = {RULE_EXACT, 'suffix_2_unique', 'suffix_3_unique', 'suffix_4_unique
 
 
 def scan_image_folder(folder_path: str) -> list:
-    supported_ext = ('.jpg', '.jpeg')
+    supported_ext = ('.jpg', '.jpeg', '.png')
     files = [f for f in os.listdir(folder_path) if f.lower().endswith(supported_ext)]
     files.sort()
     return files

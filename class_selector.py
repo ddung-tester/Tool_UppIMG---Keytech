@@ -72,5 +72,5 @@ def count_images_in_folder(folder_path: str) -> int:
     """Đếm file ảnh trong folder."""
     if not folder_path or not os.path.isdir(folder_path):
         return 0
-    supported = ('.jpg', '.jpeg')
+    supported = ('.jpg', '.jpeg', '.png')
     return sum(1 for f in os.listdir(folder_path) if f.lower().endswith(supported))

@@ -37,7 +37,7 @@ _VIET_CHARS = {
 _VIET_MAP = str.maketrans(_VIET_CHARS)
 
 _SUFFIX_PATTERN = re.compile(
-    r'[\s_-]*(?:\(\d+\)|\d+|-?\s*copy(?:\s*\d+)?)\s*$',
+    r'(?<=\D)[\s_-]*(?:\(\d+\)|\d+|-?\s*copy(?:\s*\d+)?)\s*$',
     re.IGNORECASE
 )
 
