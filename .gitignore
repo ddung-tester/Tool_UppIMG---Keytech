@@ -1,15 +1,19 @@
-# build
+# build artifacts
 dist/
 build/
+*.spec
 
-# python
+# python bytecode
 __pycache__/
 *.pyc
+*.pyo
 
-# playwright
+# playwright local browsers
 .playwright/
 
-# env
+# env & secrets
 .env
+
+# IDE
 .vscode/
 .idea/

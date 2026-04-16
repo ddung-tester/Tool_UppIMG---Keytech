@@ -62,9 +62,12 @@ def _find_embedded_browser_path() -> Optional[str]:
     for name in os.listdir(package_root):
         if not name.startswith('chromium-'):
             continue
-        chrome_path = os.path.join(package_root, name, 'chrome-win', 'chrome.exe')
-        if os.path.isfile(chrome_path):
-            candidates.append(chrome_path)
+        # Playwright 1.40+ dùng chrome-win64 trên Windows 64-bit
+        for subfolder in ('chrome-win64', 'chrome-win'):
+            chrome_path = os.path.join(package_root, name, subfolder, 'chrome.exe')
+            if os.path.isfile(chrome_path):
+                candidates.append(chrome_path)
+                break
 
     if not candidates:
         return None
