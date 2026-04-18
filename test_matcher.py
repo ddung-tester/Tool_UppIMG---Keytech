@@ -4,7 +4,7 @@ Chạy: python test_matcher.py
 """
 
 from name_utils import normalize_name, tokenize_name, build_suffixes
-from matcher import build_student_index, RULE_EXACT, RULE_AMBIGUOUS, RULE_NOT_FOUND
+from matcher import build_student_index, RULE_EXACT, RULE_SUBSET, RULE_AMBIGUOUS, RULE_NOT_FOUND
 
 
 def make_student(name, sid):
@@ -189,6 +189,67 @@ def test_case_9_underscore_dash():
     print()
 
 
+def test_case_10_subset_match():
+    """BUG FIX: file 'phạm bảo thy' phải match nghi ngờ với 'Phạm Mai Bảo Thy'"""
+    print("=== Case 10: Subset match — thiếu tên đệm ===")
+    students = [make_student('Phạm Mai Bảo Thy', 1)]
+    index = build_student_index(students)
+
+    # "phạm bảo thy" → subset of "Phạm Mai Bảo Thy" → phải là subset_match (pending)
+    m = index.match(normalize_name('phạm bảo thy.jpg'))
+    ok = m.rule == RULE_SUBSET and m.student['id'] == 1 and m.is_weak
+    status = "✅" if ok else "❌"
+    print(f"  {status} 'phạm bảo thy.jpg' -> rule={m.rule}, id={m.student['id'] if m.student else None}, weak={m.is_weak}")
+    print(f"         (Phải là nghi ngờ, KHÔNG PHẢI không khớp!)")
+    print()
+
+
+def test_case_11_subset_ambiguous():
+    """Subset match với nhiều ứng viên → ambiguous"""
+    print("=== Case 11: Subset match — nhiều ứng viên ===")
+    students = [
+        make_student('Phạm Mai Bảo Thy', 1),
+        make_student('Phạm Ngọc Bảo Thy', 2),
+    ]
+    index = build_student_index(students)
+
+    m = index.match(normalize_name('phạm bảo thy.jpg'))
+    ok = m.rule == RULE_AMBIGUOUS and len(m.candidates) == 2
+    status = "✅" if ok else "❌"
+    print(f"  {status} 'phạm bảo thy.jpg' -> rule={m.rule}, candidates={len(m.candidates)}")
+    print()
+
+
+def test_case_12_subset_single_token_no_match():
+    """Single token không nên trigger subset match"""
+    print("=== Case 12: Single token — không subset match ===")
+    students = [make_student('Phạm Mai Bảo Thy', 1)]
+    index = build_student_index(students)
+
+    # "thy" → chỉ 1 token → nên là suffix_1, KHÔNG phải subset
+    m = index.match(normalize_name('thy.jpg'))
+    ok = m.rule == 'suffix_1_unique' and m.is_weak
+    status = "✅" if ok else "❌"
+    print(f"  {status} 'thy.jpg' -> rule={m.rule}, weak={m.is_weak}")
+    print(f"         (Single token dùng suffix, không dùng subset)")
+    print()
+
+
+def test_case_13_subset_wrong_order():
+    """Tokens sai thứ tự → không match subset"""
+    print("=== Case 13: Wrong order — không subset match ===")
+    students = [make_student('Phạm Mai Bảo Thy', 1)]
+    index = build_student_index(students)
+
+    # "thy bảo phạm" → sai thứ tự → không khớp
+    m = index.match(normalize_name('thy bảo phạm.jpg'))
+    ok = m.rule == RULE_NOT_FOUND
+    status = "✅" if ok else "❌"
+    print(f"  {status} 'thy bảo phạm.jpg' -> rule={m.rule}")
+    print(f"         (Sai thứ tự → không khớp)")
+    print()
+
+
 if __name__ == '__main__':
     test_normalize()
     test_tokenize()
@@ -202,6 +263,10 @@ if __name__ == '__main__':
     test_case_7_suffix_2_ambiguous()
     test_case_8_exact_beats_suffix()
     test_case_9_underscore_dash()
+    test_case_10_subset_match()
+    test_case_11_subset_ambiguous()
+    test_case_12_subset_single_token_no_match()
+    test_case_13_subset_wrong_order()
 
     print("=" * 40)
     print("All tests complete.")

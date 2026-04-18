@@ -15,6 +15,7 @@ from matcher import (
     format_candidate,
     MatchResult,
     RULE_EXACT,
+    RULE_SUBSET,
     RULE_AMBIGUOUS,
     RULE_NOT_FOUND,
 )
@@ -165,6 +166,25 @@ def process_phase1(
             results.append(_make_result(filename, norm_name, None, STATUS_NOT_FOUND,
                                         "Không tìm thấy học sinh phù hợp",
                                         match_rule='not_found', file_tokens=file_tokens))
+            continue
+
+        # Subset match (VD: file "phạm bảo thy" → HS "Phạm Mai Bảo Thy")
+        # Luôn đưa vào pending để user xác nhận
+        if match.rule == RULE_SUBSET:
+            student = match.student
+            staff_name = student.get('staffName', '') if student else ''
+            log(f"⏳ Chờ duyệt (nghi ngờ - thiếu tên đệm) → {filename}  →  {staff_name}")
+            pending.append({
+                'file_name': filename,
+                'file_path': file_path,
+                'norm_name': norm_name,
+                'status': STATUS_PENDING_WEAK,
+                'match_rule': 'subset_match',
+                'proposed_match': student,
+                'candidate_matches': [],
+                'selected_student': None,
+                'is_selected': False,
+            })
             continue
 
         # Mơ hồ → pending
