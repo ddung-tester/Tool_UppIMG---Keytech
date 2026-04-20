@@ -114,6 +114,164 @@ def fetch_student_list(api_list_url: str, jsessionid: str) -> list:
         raise APIError("Response không đúng format")
 
 
+def _extract_pagination_info(data):
+    """Trích thông tin phân trang từ response dict (nếu có)."""
+    if not isinstance(data, dict):
+        return None
+
+    total_keys = ('total', 'totalRecords', 'totalCount', 'count', 'recordsTotal')
+    total_pages_keys = ('totalPages', 'pages', 'pageCount')
+
+    info = {}
+    for key in total_keys:
+        if key in data and data[key] is not None:
+            try:
+                info['total'] = int(data[key])
+                break
+            except (ValueError, TypeError):
+                pass
+
+    for key in total_pages_keys:
+        if key in data and data[key] is not None:
+            try:
+                info['total_pages'] = int(data[key])
+                break
+            except (ValueError, TypeError):
+                pass
+
+    # Tìm trong nested 'page' dict
+    if not info and 'page' in data and isinstance(data['page'], dict):
+        return _extract_pagination_info(data['page'])
+
+    return info if info else None
+
+
+def fetch_all_students(api_list_url: str, jsessionid: str,
+                       on_log=None, page_limit: int = 5000) -> list:
+    """
+    Gọi API list để lấy TOÀN BỘ học sinh qua tất cả các trang.
+    Tự động xử lý phân trang, deduplicate theo id.
+
+    Args:
+        api_list_url: API URL danh sách học sinh.
+        jsessionid: JSESSIONID hiện tại.
+        on_log: Callback ghi log (optional).
+        page_limit: Số bản ghi mỗi trang (mặc định 500).
+
+    Returns: list các dict student record (deduplicated).
+    Raises: SessionExpiredError, APIError
+    """
+    def log(msg):
+        logger.info(msg)
+        if on_log:
+            on_log(msg)
+
+    sess = _make_session(jsessionid)
+
+    parsed = urlparse(api_list_url)
+    base_params = parse_qs(parsed.query, keep_blank_values=True)
+    base_params['limit'] = [str(page_limit)]
+
+    all_students = []
+    seen_ids = set()
+    current_page = 1
+    total_pages = None
+    total_records = None
+
+    while True:
+        base_params['page'] = [str(current_page)]
+        flat_params = {k: v[0] for k, v in base_params.items()}
+        new_query = urlencode(flat_params)
+        final_url = urlunparse(parsed._replace(query=new_query))
+
+        log(f"📄 Đang tải trang {current_page}"
+            f"{f'/{total_pages}' if total_pages else ''}"
+            f" (limit={page_limit})...")
+
+        resp = _request_with_retry('GET', final_url, sess)
+
+        if resp.status_code in (401, 403):
+            raise SessionExpiredError("Session hết hạn (HTTP {})".format(resp.status_code))
+
+        if resp.status_code != 200:
+            raise APIError("API trả về HTTP {}".format(resp.status_code))
+
+        if 'login' in resp.url.lower() and resp.url != final_url:
+            raise SessionExpiredError("Session hết hạn (redirect về trang login)")
+
+        data = resp.json()
+
+        # Trích danh sách học sinh từ response
+        if isinstance(data, list):
+            page_students = data
+        elif isinstance(data, dict):
+            page_students = _extract_student_list(data)
+            if page_students is None:
+                if current_page == 1:
+                    raise APIError("Không tìm thấy danh sách học sinh. "
+                                   "Response keys: {}".format(list(data.keys())))
+                else:
+                    break  # Trang sau không có dữ liệu
+
+            # Lấy thông tin phân trang ở trang đầu tiên
+            if current_page == 1:
+                pag_info = _extract_pagination_info(data)
+                if pag_info:
+                    total_records = pag_info.get('total')
+                    total_pages = pag_info.get('total_pages')
+
+                    # Tính total_pages từ total nếu chưa có
+                    if total_pages is None and total_records is not None:
+                        total_pages = (total_records + page_limit - 1) // page_limit
+
+                    if total_records is not None:
+                        log(f"📊 API báo tổng cộng: {total_records} học sinh"
+                            f", {total_pages} trang")
+        else:
+            if current_page == 1:
+                raise APIError("Response không đúng format")
+            else:
+                break
+
+        if not page_students:
+            log(f"📄 Trang {current_page}: 0 học sinh — kết thúc.")
+            break
+
+        # Deduplicate theo id
+        new_count = 0
+        for student in page_students:
+            sid = student.get('id')
+            if sid is not None and sid in seen_ids:
+                continue
+            if sid is not None:
+                seen_ids.add(sid)
+            all_students.append(student)
+            new_count += 1
+
+        dup_count = len(page_students) - new_count
+        dup_note = f" ({dup_count} trùng bỏ qua)" if dup_count > 0 else ""
+        log(f"✅ Trang {current_page}: {len(page_students)} học sinh"
+            f", mới: {new_count}{dup_note}")
+
+        # Kiểm tra điều kiện dừng
+        if total_pages is not None and current_page >= total_pages:
+            break  # Đã lấy hết trang
+
+        if len(page_students) < page_limit:
+            # Trang trả về ít hơn limit → đây là trang cuối
+            break
+
+        current_page += 1
+
+        # Giới hạn an toàn: không quá 100 trang
+        if current_page > 100:
+            log("⚠ Đã đạt giới hạn 100 trang, dừng lại.")
+            break
+
+    log(f"📋 Tổng cộng: {len(all_students)} học sinh (sau deduplicate)")
+    return all_students
+
+
 def upload_face_image(
     base_url: str,
     jsessionid: str,

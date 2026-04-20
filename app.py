@@ -22,11 +22,24 @@ from uploader import (
     STATUS_PENDING_WEAK,
     STATUS_PENDING_AMBIGUOUS,
 )
-from api_client import test_connection
+from api_client import (
+    test_connection,
+    fetch_student_list,
+    fetch_all_students,
+    SessionExpiredError,
+    APIError,
+)
 from class_selector import (
     validate_class_config,
     guess_class_from_folder,
     count_images_in_folder,
+)
+from excel_exporter import (
+    build_parent_account_rows,
+    build_parent_account_rows_by_phone,
+    export_parent_accounts_to_excel,
+    EXPORT_MODE_GMAIL,
+    EXPORT_MODE_PHONE,
 )
 
 # Playwright optional
@@ -222,6 +235,8 @@ class FaceUploadApp(ctk.CTk):
         self._manual_mode = False
         self._playwright_ready = False
         self._playwright_error = None
+        self._excel_mode = False
+        self._excel_export_mode = EXPORT_MODE_GMAIL  # 'gmail' or 'phone'
 
         # Keep references to images so they aren't GC'd
         self._watermark_img = None
@@ -452,6 +467,48 @@ class FaceUploadApp(ctk.CTk):
         )
         self.btn_stop.grid(row=0, column=6, padx=(0, 6))
 
+        self.btn_excel_mode = ctk.CTkButton(
+            act_frame, text="📊 Chế độ Excel", width=120, height=32,
+            fg_color="#1a6b8a", hover_color="#14536b",
+            command=self._on_toggle_excel_mode,
+        )
+        self.btn_excel_mode.grid(row=1, column=0, padx=(0, 6), pady=(4, 0))
+
+        # Segmented button chọn chế độ xuất: Gmail / SĐT
+        self.var_excel_export_mode = ctk.StringVar(value=EXPORT_MODE_GMAIL)
+        self.seg_export_mode = ctk.CTkSegmentedButton(
+            act_frame,
+            values=[EXPORT_MODE_GMAIL, EXPORT_MODE_PHONE],
+            variable=self.var_excel_export_mode,
+            command=self._on_export_mode_changed,
+            width=220, height=32,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            selected_color="#d4a017",
+            selected_hover_color="#b8860b",
+            unselected_color="#333355",
+            unselected_hover_color="#444466",
+        )
+        # Ghi đè text hiển thị cho dễ hiểu
+        try:
+            for btn_key in self.seg_export_mode._buttons_dict:
+                if btn_key == EXPORT_MODE_GMAIL:
+                    self.seg_export_mode._buttons_dict[btn_key].configure(text="📧 Gmail")
+                elif btn_key == EXPORT_MODE_PHONE:
+                    self.seg_export_mode._buttons_dict[btn_key].configure(text="📱 SĐT")
+        except Exception:
+            pass  # Fallback: hiển thị text gốc 'gmail' / 'phone'
+        # Lưu grid params để show/hide chính xác
+        self._seg_grid_params = dict(row=1, column=1, padx=(0, 6), pady=(4, 0), columnspan=2)
+        # Ẩn mặc định — chỉ hiện khi bật Excel mode (không grid() trước)
+
+        self.btn_export_excel = ctk.CTkButton(
+            act_frame, text="📥 Xuất Excel", width=100, height=32,
+            fg_color="#d4a017", hover_color="#b8860b",
+            font=ctk.CTkFont(weight="bold"),
+            command=self._on_export_accounts_excel,
+        )
+        self.btn_export_excel.grid(row=1, column=3, padx=(0, 6), pady=(4, 0))
+
         self.progress_bar = ctk.CTkProgressBar(act_frame, width=150, height=12)
         self.progress_bar.grid(row=0, column=7, padx=(6, 0), sticky="ew")
         self.progress_bar.set(0)
@@ -590,14 +647,25 @@ class FaceUploadApp(ctk.CTk):
             # Update deptId label
             self.lbl_dept_id.configure(text=f"deptId: {dept_id}")
 
-            # Fill class name
+            # Fill class name (tạm enable nếu đang disabled)
             if class_name:
+                was_disabled = str(self.entry_class_name.cget('state')) == 'disabled'
+                if was_disabled:
+                    self.entry_class_name.configure(state="normal")
                 self.entry_class_name.delete(0, 'end')
                 self.entry_class_name.insert(0, class_name)
+                if was_disabled:
+                    self.entry_class_name.configure(state="disabled")
 
             class_display = f" | Lớp: {class_name}" if class_name else ""
             self._log(f"🎯 Đã tự động cập nhật lớp! deptId: {dept_id}{class_display}")
-            self._log("👉 API URL đã được điền. Bạn có thể Kiểm tra & Upload ngay.")
+
+            # Chế độ Excel: tự động xuất Excel khi detect API
+            if self._excel_mode:
+                self._log("📊 Chế độ Excel: tự động xuất file...")
+                self.after(300, self._on_export_accounts_excel)
+            else:
+                self._log("👉 API URL đã được điền. Bạn có thể Kiểm tra & Upload ngay.")
 
         # Schedule UI update on main thread (callback comes from Playwright thread)
         self.after(0, _update)
@@ -865,6 +933,173 @@ class FaceUploadApp(ctk.CTk):
             text=f"Hoàn thành | ✅ {counter.get('success', 0)} | "
                  f"❌ {counter.get('not_found', 0)} | 💥 {counter.get('upload_failed', 0)}"
         )
+
+    # ===================================================
+    # CHẾ ĐỘ XUẤT EXCEL TÀI KHOẢN PHỤ HUYNH
+    # ===================================================
+
+    def _on_export_mode_changed(self, value: str):
+        """Callback khi người dùng chọn chế độ xuất Gmail/SĐT."""
+        self._excel_export_mode = value
+        if value == EXPORT_MODE_GMAIL:
+            self._log("📧 Chế độ xuất: Tài khoản theo Gmail")
+        else:
+            self._log("📱 Chế độ xuất: Tài khoản theo SĐT phụ huynh")
+
+    def _on_toggle_excel_mode(self):
+        """Bật/tắt chế độ Excel."""
+        self._excel_mode = not self._excel_mode
+
+        if self._excel_mode:
+            self.btn_excel_mode.configure(
+                text="📊 Excel: BẬT",
+                fg_color="#d4a017", hover_color="#b8860b",
+            )
+            self._log("━" * 55)
+            self._log("📊 CHẾ ĐỘ XUẤT EXCEL đã BẬT")
+            self._log("━" * 55)
+
+            # Hiện bộ chọn chế độ xuất
+            self.seg_export_mode.grid(**self._seg_grid_params)
+
+            mode_label = "📧 Gmail" if self._excel_export_mode == EXPORT_MODE_GMAIL else "📱 SĐT"
+            self._log(f"📋 Chế độ xuất hiện tại: {mode_label}")
+            self._log("ℹ 📧 Gmail: Tài khoản = phần trước @gmail.com")
+            self._log("ℹ 📱 SĐT: Tài khoản = số điện thoại từ thông tin phụ huynh")
+
+            # Tắt các trường không cần cho Excel
+            self.entry_class_name.configure(state="disabled")
+            self.entry_folder.configure(state="disabled")
+            self.entry_face_date.configure(state="disabled")
+
+            # Cho phép bắt mọi staff/list request (không yêu cầu deptList)
+            if self._login_helper:
+                self._login_helper._require_dept_list = False
+                if self._login_helper.is_browser_open:
+                    self._login_helper.reset_detection()
+
+            # Kiểm tra JSESSIONID
+            jsessionid = self.entry_session.get().strip()
+            if not jsessionid:
+                self._log("⚠ Chưa có JSESSIONID — hãy đăng nhập trước hoặc nhập thủ công.")
+            else:
+                self._log("👉 Bấm nút [📥 Xuất Excel] để xuất file.")
+                self._log("👉 Hoặc click lớp trên browser → tool tự động xuất.")
+        else:
+            self.btn_excel_mode.configure(
+                text="📊 Chế độ Excel",
+                fg_color="#1a6b8a", hover_color="#14536b",
+            )
+            self._log("📊 Chế độ Excel đã TẮT.")
+
+            # Ẩn bộ chọn chế độ xuất
+            self.seg_export_mode.grid_forget()
+
+            # Bật lại các trường upload
+            self.entry_class_name.configure(state="normal")
+            self.entry_folder.configure(state="normal")
+            self.entry_face_date.configure(state="normal")
+
+            # Khôi phục yêu cầu deptList cho chế độ upload
+            if self._login_helper:
+                self._login_helper._require_dept_list = True
+
+    def _on_export_accounts_excel(self):
+        """Xuất Excel tài khoản phụ huynh từ API URL hiện tại."""
+        # Validate đầu vào
+        api_url = self.entry_api_url.get().strip()
+        jsessionid = self.entry_session.get().strip()
+        base_url = self.entry_base_url.get().strip()
+
+        # Nếu chưa có API URL → tự tạo từ base_url
+        if not api_url and base_url:
+            api_url = base_url.rstrip('/') + '/ent/ent/staff/list?staffType=S'
+            self.entry_api_url.delete(0, 'end')
+            self.entry_api_url.insert(0, api_url)
+
+        if not api_url:
+            self._log("⚠ API URL trống và Base URL cũng trống — không thể xuất.")
+            return
+
+        if not jsessionid:
+            self._log("⚠ JSESSIONID trống — chưa đăng nhập.")
+            return
+
+        # Chọn nơi lưu file
+        class_name = self.entry_class_name.get().strip() or "TatCa"
+        default_filename = f"Dsach tài khoản HS {class_name}.xlsx"
+        output_path = filedialog.asksaveasfilename(
+            title="Lưu file Excel tài khoản phụ huynh",
+            defaultextension=".xlsx",
+            filetypes=[("Excel Files", "*.xlsx")],
+            initialfile=default_filename,
+        )
+        if not output_path:
+            return  # User hủy — vẫn giữ chế độ Excel
+
+        self.btn_excel_mode.configure(state="disabled")
+        self.btn_export_excel.configure(state="disabled")
+        self._log("📥 Đang xuất Excel tài khoản phụ huynh...")
+
+        def _worker():
+            try:
+                # Fetch TOÀN BỘ danh sách học sinh (tự động phân trang)
+                students = fetch_all_students(
+                    api_url, jsessionid,
+                    on_log=self._on_log_callback,
+                )
+
+                if not students:
+                    self._on_log_callback("❌ Không có dữ liệu học sinh để xuất.")
+                    return
+
+                # Build rows theo chế độ đã chọn
+                export_mode = self._excel_export_mode
+                if export_mode == EXPORT_MODE_PHONE:
+                    self._on_log_callback("📱 Đang tạo tài khoản theo SĐT phụ huynh...")
+                    rows = build_parent_account_rows_by_phone(
+                        students,
+                        on_log=self._on_log_callback,
+                    )
+                else:
+                    self._on_log_callback("📧 Đang tạo tài khoản theo Gmail...")
+                    rows = build_parent_account_rows(
+                        students,
+                        on_log=self._on_log_callback,
+                    )
+
+                if not rows:
+                    self._on_log_callback("❌ Không thể tạo dữ liệu tài khoản.")
+                    return
+
+                # Export to Excel
+                success = export_parent_accounts_to_excel(
+                    rows,
+                    output_path,
+                    on_log=self._on_log_callback,
+                )
+
+                if success:
+                    self._on_log_callback(f"🎉 Xuất Excel thành công: {output_path}")
+
+            except SessionExpiredError as e:
+                self._on_log_callback(f"❌ Phiên đăng nhập hết hạn: {e}")
+            except APIError as e:
+                self._on_log_callback(f"❌ Lỗi API: {e}")
+            except Exception as e:
+                self._on_log_callback(f"💥 Lỗi không mong đợi: {e}")
+                logger.exception("Export Excel error")
+            finally:
+                def _re_enable():
+                    self.btn_excel_mode.configure(state="normal")
+                    self.btn_export_excel.configure(state="normal")
+                    # Reset detect để bắt lớp tiếp theo
+                    if self._excel_mode and self._login_helper and self._login_helper.is_browser_open:
+                        self._login_helper.reset_detection()
+                        self._log("👉 Sẵn sàng — click lớp tiếp theo trên browser để xuất tiếp.")
+                self.after(0, _re_enable)
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     # ===================================================
     # HELPERS

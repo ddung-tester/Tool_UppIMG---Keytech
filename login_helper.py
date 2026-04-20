@@ -161,6 +161,7 @@ class LoginHelper:
         self._detected_dept_id = None
         self._detected_class_name = None
         self._listening_active = False
+        self._require_dept_list = True   # False = chấp nhận request không có deptList (Excel mode)
         self._skip_count = 0
 
         # Thread lifecycle: keeps Playwright thread alive until browser is closed
@@ -357,11 +358,9 @@ class LoginHelper:
 
     def _on_network_request(self, request):
         """
-        Lắng nghe mọi request. Chỉ capture request hợp lệ:
-        - Phải có staff/list
-        - Phải có deptList
-        - deptList phải chứa đúng 1 ID
-        - Cập nhật liên tục theo URL cuối cùng
+        Lắng nghe mọi request. Capture request staff/list.
+        Nếu _require_dept_list=True: phải có deptList với đúng 1 ID.
+        Nếu _require_dept_list=False (Excel mode): chấp nhận mọi staff/list.
         """
         if not self._listening_active:
             return
@@ -375,31 +374,26 @@ class LoginHelper:
 
             self.log(f"📡 Bắt được request: ...{url.split('?')[0].split('/')[-1]}?...")
 
-            # RULE 1: Phải có deptList
-            if STUDENT_LIST_URL_CONTAINS not in url:
+            # Kiểm tra deptList
+            dept_ids = extract_dept_ids(url) if STUDENT_LIST_URL_CONTAINS in url else []
+            dept_id = None
+
+            if dept_ids:
+                if len(dept_ids) > 1 and self._require_dept_list:
+                    self.log(f"ℹ Bỏ qua: deptList có {len(dept_ids)} ID (chỉ chấp nhận 1)")
+                    return
+                dept_id = dept_ids[0] if len(dept_ids) == 1 else None
+            elif self._require_dept_list:
+                # Chế độ upload: bắt buộc có deptList
                 self._skip_count += 1
                 self.log(f"ℹ Bỏ qua request staff/list không có deptList (lần #{self._skip_count})")
                 return
+            # else: Excel mode → chấp nhận không có deptList
 
-            # RULE 2: deptList phải chứa đúng 1 ID
-            dept_ids = extract_dept_ids(url)
-
-            if len(dept_ids) == 0:
-                self.log("ℹ Bỏ qua: deptList rỗng")
-                return
-
-            if len(dept_ids) > 1:
-                self.log(f"ℹ Bỏ qua: deptList có {len(dept_ids)} ID (chỉ chấp nhận 1)")
-                return
-
-            # RULE 3+4: Cập nhật liên tục URL cuối cùng
-            dept_id = dept_ids[0]
-            
-            # Ghi nhận URL mới và reset class name để response handler lấy tên lớp mới
-            if self._detected_api_url != url:
-                self._detected_api_url = url
-                self._detected_dept_id = dept_id
-                self._detected_class_name = None
+            # Ghi nhận URL mới
+            self._detected_api_url = url
+            self._detected_dept_id = dept_id
+            self._detected_class_name = None
 
             # Extract session from request cookies (thread-safe)
             jsessionid = None
@@ -414,8 +408,10 @@ class LoginHelper:
             except Exception:
                 pass
 
-            self.log(f"🎯 Đã cập nhật API lớp mới!")
-            self.log(f"📌 deptId: {dept_id}")
+            if dept_id:
+                self.log(f"🎯 Đã bắt API! deptId: {dept_id}")
+            else:
+                self.log(f"🎯 Đã bắt API staff/list (toàn bộ)")
             self.log("⏳ Đang chờ response để lấy tên lớp...")
 
         except Exception as e:
@@ -426,15 +422,17 @@ class LoginHelper:
         Bắt response của request đã detect.
         Trích tên lớp từ dữ liệu học sinh và notify GUI.
         """
-        if not self._detected_api_url:
+        if not self._listening_active:
             return
-        # Chỉ xử lý response của URL đã detect (và chưa có class_name)
-        if self._detected_class_name:
+        if not self._detected_api_url:
             return
 
         try:
             url = response.url
-            if 'staff/list' not in url or STUDENT_LIST_URL_CONTAINS not in url:
+            if 'staff/list' not in url:
+                return
+            # Trong chế độ upload (require_dept_list), chỉ xử lý response có deptList
+            if self._require_dept_list and STUDENT_LIST_URL_CONTAINS not in url:
                 return
 
             if response.status != 200:

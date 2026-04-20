@@ -30,7 +30,7 @@ Upload hàng loạt ảnh khuôn mặt (`.jpg`/`.jpeg`) cho học sinh lên hệ
 | **Auto Login** | Tự động đăng nhập qua Playwright browser |
 | **Auto API Detect** | Tự bắt API URL khi user chọn lớp trên browser |
 | **Auto Class Name** | Tự trích tên lớp từ response API |
-| **Smart Name Matching** | Đối chiếu tên file ↔ tên HS qua normalize + suffix matching |
+| **Smart Name Matching** | Đối chiếu tên file ↔ tên HS qua normalize + suffix matching + subset matching (khớp một phần) |
 | **2-Phase Upload** | Phase 1: upload an toàn. Phase 2: duyệt match yếu/mơ hồ |
 | **Dry Run** | Chế độ kiểm tra không upload thật |
 | **Skip Existing** | Bỏ qua HS đã có ảnh |
@@ -234,14 +234,15 @@ Scan folder ảnh → Fetch student list → Build index → Match từng file
                           ┌───────────┬──────────┬────────┴────────┐
                           │           │          │                 │
                        Exact/     Weak match   Ambiguous       Not found
-                       Safe suffix  (1 token)   (>1 candidate)
+                       Safe suffix  (1 token,   (>1 candidate)
+                                    or subset)
                           │           │          │
                        Upload/     → pending    → pending
                        Dry run       (Phase 2)    (Phase 2)
 ```
 
 - **Safe rules**: `exact_full_name`, `suffix_N_unique` (N ≥ 2) → upload tự động
-- **Weak rules**: `suffix_1_unique` → đưa vào pending, chờ user xác nhận
+- **Weak rules**: `suffix_1_unique` hoặc `subset_match` (tên file là chuỗi con) → đưa vào pending, chờ user xác nhận
 - **Ambiguous**: nhiều HS trùng → đưa vào pending, user chọn đúng người
 
 #### Phase 2: `process_phase2()`
@@ -271,8 +272,9 @@ suffix_index: "van an"        → [student]   (suffix 2 token)
 **`match(file_norm_name)`** — Priority:
 1. Exact full-name → `exact_full_name`
 2. Suffix match (unique) → `suffix_N_unique`
-3. Suffix match (>1 result) → `ambiguous`
-4. Không match → `not_found`
+3. Subset match (unique) → `subset_match` (tên file thiếu tên đệm, VD: "phạm bảo thy" -> "Phạm Mai Bảo Thy")
+4. Suffix/Subset match (>1 result) → `ambiguous`
+5. Không match → `not_found`
 
 ---
 
