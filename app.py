@@ -179,14 +179,12 @@ class SplashScreen(ctk.CTkToplevel):
         except Exception:
             return
 
-        total_frames = 20  # ~1.3s animation
+        total_frames = 12  # ~0.8s animation (nhẹ hơn 20 frames)
+        r, g, b, a = logo.split()
         for i in range(total_frames + 1):
             alpha = i / total_frames  # 0.0 -> 1.0
-            # Fade: adjust alpha channel
-            frame = logo.copy()
-            r, g, b, a = frame.split()
-            a = a.point(lambda p: int(p * alpha))
-            frame = Image.merge("RGBA", (r, g, b, a))
+            a_frame = a.point(lambda p, _a=alpha: int(p * _a))
+            frame = Image.merge("RGBA", (r, g, b, a_frame))
 
             ctk_img = ctk.CTkImage(light_image=frame, dark_image=frame, size=(160, 160))
             self._frames.append(ctk_img)
@@ -201,7 +199,7 @@ class SplashScreen(ctk.CTkToplevel):
             self._logo_label.configure(image=self._frames[self._current_frame])
             self._progress.set(self._current_frame / (total - 1))
             self._current_frame += 1
-            self.after(65, self._animate)  # ~65ms per frame
+            self.after(65, self._animate)
         else:
             # Animation done — hold for a moment
             self._progress.set(1)
@@ -254,11 +252,23 @@ class FaceUploadApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(4, weight=1)  # log_box stretch
 
-        # Header
+        # Header with mode switch
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.grid(row=0, column=0, padx=12, pady=(8, 4), sticky="ew")
+        header_frame.grid_columnconfigure(0, weight=1)
+
         ctk.CTkLabel(
-            self, text=f"🎓 {APP_TITLE}",
+            header_frame, text=f"🎓 {APP_TITLE}",
             font=ctk.CTkFont(size=18, weight="bold"),
-        ).grid(row=0, column=0, padx=12, pady=(8, 4), sticky="w")
+        ).grid(row=0, column=0, sticky="w")
+
+        self.btn_excel_mode = ctk.CTkButton(
+            header_frame, text="📊 Chế độ Excel", width=140, height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="#1a6b8a", hover_color="#14536b",
+            command=self._on_toggle_excel_mode,
+        )
+        self.btn_excel_mode.grid(row=0, column=1, padx=(8, 0), sticky="e")
 
         # --- KHỐI A: Login ---
         self.frame_login = ctk.CTkFrame(self)
@@ -266,11 +276,17 @@ class FaceUploadApp(ctk.CTk):
         self.frame_login.grid_columnconfigure(1, weight=1)
         self._build_login_section(self.frame_login)
 
-        # --- KHỐI B: Cấu hình lớp ---
+        # --- KHỐI B: Cấu hình lớp (Upload mode) ---
         self.frame_config = ctk.CTkFrame(self)
         self.frame_config.grid(row=2, column=0, padx=12, pady=4, sticky="ew")
         self.frame_config.grid_columnconfigure(1, weight=1)
         self._build_config_section(self.frame_config)
+
+        # --- KHỐI B2: Excel mode (ẩn mặc định) ---
+        self.frame_excel = ctk.CTkFrame(self)
+        self.frame_excel.grid_columnconfigure(1, weight=1)
+        self._build_excel_section(self.frame_excel)
+        # Không grid() → ẩn mặc định
 
         # --- KHỐI C: Header log + Log box ---
         log_header = ctk.CTkFrame(self, fg_color="transparent")
@@ -467,48 +483,6 @@ class FaceUploadApp(ctk.CTk):
         )
         self.btn_stop.grid(row=0, column=6, padx=(0, 6))
 
-        self.btn_excel_mode = ctk.CTkButton(
-            act_frame, text="📊 Chế độ Excel", width=120, height=32,
-            fg_color="#1a6b8a", hover_color="#14536b",
-            command=self._on_toggle_excel_mode,
-        )
-        self.btn_excel_mode.grid(row=1, column=0, padx=(0, 6), pady=(4, 0))
-
-        # Segmented button chọn chế độ xuất: Gmail / SĐT
-        self.var_excel_export_mode = ctk.StringVar(value=EXPORT_MODE_GMAIL)
-        self.seg_export_mode = ctk.CTkSegmentedButton(
-            act_frame,
-            values=[EXPORT_MODE_GMAIL, EXPORT_MODE_PHONE],
-            variable=self.var_excel_export_mode,
-            command=self._on_export_mode_changed,
-            width=220, height=32,
-            font=ctk.CTkFont(size=12, weight="bold"),
-            selected_color="#d4a017",
-            selected_hover_color="#b8860b",
-            unselected_color="#333355",
-            unselected_hover_color="#444466",
-        )
-        # Ghi đè text hiển thị cho dễ hiểu
-        try:
-            for btn_key in self.seg_export_mode._buttons_dict:
-                if btn_key == EXPORT_MODE_GMAIL:
-                    self.seg_export_mode._buttons_dict[btn_key].configure(text="📧 Gmail")
-                elif btn_key == EXPORT_MODE_PHONE:
-                    self.seg_export_mode._buttons_dict[btn_key].configure(text="📱 SĐT")
-        except Exception:
-            pass  # Fallback: hiển thị text gốc 'gmail' / 'phone'
-        # Lưu grid params để show/hide chính xác
-        self._seg_grid_params = dict(row=1, column=1, padx=(0, 6), pady=(4, 0), columnspan=2)
-        # Ẩn mặc định — chỉ hiện khi bật Excel mode (không grid() trước)
-
-        self.btn_export_excel = ctk.CTkButton(
-            act_frame, text="📥 Xuất Excel", width=100, height=32,
-            fg_color="#d4a017", hover_color="#b8860b",
-            font=ctk.CTkFont(weight="bold"),
-            command=self._on_export_accounts_excel,
-        )
-        self.btn_export_excel.grid(row=1, column=3, padx=(0, 6), pady=(4, 0))
-
         self.progress_bar = ctk.CTkProgressBar(act_frame, width=150, height=12)
         self.progress_bar.grid(row=0, column=7, padx=(6, 0), sticky="ew")
         self.progress_bar.set(0)
@@ -660,8 +634,12 @@ class FaceUploadApp(ctk.CTk):
             class_display = f" | Lớp: {class_name}" if class_name else ""
             self._log(f"🎯 Đã tự động cập nhật lớp! deptId: {dept_id}{class_display}")
 
-            # Chế độ Excel: tự động xuất Excel khi detect API
+            # Chế độ Excel: cập nhật label + tự động xuất Excel khi detect API
             if self._excel_mode:
+                self.excel_lbl_class.configure(
+                    text=class_name if class_name else "Chưa chọn lớp",
+                    text_color="#4ade80" if class_name else "#aaaaaa",
+                )
                 self._log("📊 Chế độ Excel: tự động xuất file...")
                 self.after(300, self._on_export_accounts_excel)
             else:
@@ -946,59 +924,142 @@ class FaceUploadApp(ctk.CTk):
         else:
             self._log("📱 Chế độ xuất: Tài khoản theo SĐT phụ huynh")
 
+    def _build_excel_section(self, parent):
+        """Xây dựng giao diện riêng cho chế độ xuất Excel."""
+        ctk.CTkLabel(
+            parent, text="📊 Xuất Excel tài khoản phụ huynh",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).grid(row=0, column=0, padx=8, pady=(6, 2), sticky="w", columnspan=3)
+
+        # Base URL (dùng chung với entry_base_url ở frame_config, nên tạo label tham chiếu)
+        ctk.CTkLabel(parent, text="Base URL:", width=100, anchor="w").grid(
+            row=1, column=0, padx=(8, 4), pady=2, sticky="w")
+        self.excel_lbl_base_url = ctk.CTkLabel(
+            parent, text=DEFAULT_BASE_URL, anchor="w",
+            text_color="#aaaaaa", font=ctk.CTkFont(size=12),
+        )
+        self.excel_lbl_base_url.grid(row=1, column=1, padx=0, pady=2, sticky="w", columnspan=2)
+
+        # Session status
+        ctk.CTkLabel(parent, text="Session:", width=100, anchor="w").grid(
+            row=2, column=0, padx=(8, 4), pady=2, sticky="w")
+        self.excel_lbl_session = ctk.CTkLabel(
+            parent, text="Chưa đăng nhập", anchor="w",
+            text_color="#f87171", font=ctk.CTkFont(size=12),
+        )
+        self.excel_lbl_session.grid(row=2, column=1, padx=0, pady=2, sticky="w", columnspan=2)
+
+        # Lớp đã detect
+        ctk.CTkLabel(parent, text="Lớp:", width=100, anchor="w").grid(
+            row=3, column=0, padx=(8, 4), pady=2, sticky="w")
+        self.excel_lbl_class = ctk.CTkLabel(
+            parent, text="Chưa chọn lớp", anchor="w",
+            text_color="#aaaaaa", font=ctk.CTkFont(size=12),
+        )
+        self.excel_lbl_class.grid(row=3, column=1, padx=0, pady=2, sticky="w", columnspan=2)
+
+        # Chế độ xuất: Gmail / SĐT
+        ctk.CTkLabel(parent, text="Tên đăng nhập lấy theo: ", width=100, anchor="w").grid(
+            row=4, column=0, padx=(8, 4), pady=(6, 2), sticky="w")
+
+        self.var_excel_export_mode = ctk.StringVar(value=EXPORT_MODE_GMAIL)
+        self.seg_export_mode = ctk.CTkSegmentedButton(
+            parent,
+            values=[EXPORT_MODE_GMAIL, EXPORT_MODE_PHONE],
+            variable=self.var_excel_export_mode,
+            command=self._on_export_mode_changed,
+            width=240, height=32,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            selected_color="#d4a017",
+            selected_hover_color="#b8860b",
+            unselected_color="#333355",
+            unselected_hover_color="#444466",
+        )
+        self.seg_export_mode.grid(row=4, column=1, padx=0, pady=(6, 2), sticky="w", columnspan=2)
+        try:
+            for btn_key in self.seg_export_mode._buttons_dict:
+                if btn_key == EXPORT_MODE_GMAIL:
+                    self.seg_export_mode._buttons_dict[btn_key].configure(text="📧 Gmail")
+                elif btn_key == EXPORT_MODE_PHONE:
+                    self.seg_export_mode._buttons_dict[btn_key].configure(text="📱 SĐT")
+        except Exception:
+            pass
+
+        # Action buttons
+        excel_act = ctk.CTkFrame(parent, fg_color="transparent")
+        excel_act.grid(row=5, column=0, padx=8, pady=(6, 6), sticky="ew", columnspan=3)
+
+        self.btn_export_excel = ctk.CTkButton(
+            excel_act, text="📥 Xuất Excel", width=140, height=34,
+            fg_color="#d4a017", hover_color="#b8860b",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=self._on_export_accounts_excel,
+        )
+        self.btn_export_excel.grid(row=0, column=0, padx=(0, 8))
+
+        self.excel_lbl_hint = ctk.CTkLabel(
+            excel_act,
+            text="💡 Click lớp trên browser → tool tự động xuất, hoặc bấm nút xuất thủ công.",
+            font=ctk.CTkFont(size=11), text_color="#888888", anchor="w",
+        )
+        self.excel_lbl_hint.grid(row=0, column=1, sticky="w")
+
     def _on_toggle_excel_mode(self):
-        """Bật/tắt chế độ Excel."""
+        """Chuyển đổi giữa giao diện Upload và Excel."""
         self._excel_mode = not self._excel_mode
 
         if self._excel_mode:
+            # Ẩn frame upload, hiện frame excel
+            self.frame_config.grid_forget()
+            self.frame_excel.grid(row=2, column=0, padx=12, pady=4, sticky="ew")
+
             self.btn_excel_mode.configure(
-                text="📊 Excel: BẬT",
+                text="🔙 Chế độ Upload",
                 fg_color="#d4a017", hover_color="#b8860b",
             )
+
+            # Cập nhật thông tin hiển thị trên frame excel
+            base_url = self.entry_base_url.get().strip() or DEFAULT_BASE_URL
+            self.excel_lbl_base_url.configure(text=base_url)
+
+            jsessionid = self.entry_session.get().strip()
+            if jsessionid:
+                short = jsessionid[:12] + "..." if len(jsessionid) > 12 else jsessionid
+                self.excel_lbl_session.configure(text=f"✅ {short}", text_color="#4ade80")
+            else:
+                self.excel_lbl_session.configure(text="❌ Chưa đăng nhập", text_color="#f87171")
+
+            class_name = self.entry_class_name.get().strip()
+            self.excel_lbl_class.configure(
+                text=class_name if class_name else "Chưa chọn lớp",
+                text_color="#4ade80" if class_name else "#aaaaaa",
+            )
+
             self._log("━" * 55)
-            self._log("📊 CHẾ ĐỘ XUẤT EXCEL đã BẬT")
+            self._log("📊 CHUYỂN SANG CHẾ ĐỘ XUẤT EXCEL")
             self._log("━" * 55)
 
-            # Hiện bộ chọn chế độ xuất
-            self.seg_export_mode.grid(**self._seg_grid_params)
-
-            mode_label = "📧 Gmail" if self._excel_export_mode == EXPORT_MODE_GMAIL else "📱 SĐT"
-            self._log(f"📋 Chế độ xuất hiện tại: {mode_label}")
-            self._log("ℹ 📧 Gmail: Tài khoản = phần trước @gmail.com")
-            self._log("ℹ 📱 SĐT: Tài khoản = số điện thoại từ thông tin phụ huynh")
-
-            # Tắt các trường không cần cho Excel
-            self.entry_class_name.configure(state="disabled")
-            self.entry_folder.configure(state="disabled")
-            self.entry_face_date.configure(state="disabled")
-
-            # Cho phép bắt mọi staff/list request (không yêu cầu deptList)
+            # Cho phép bắt mọi staff/list request
             if self._login_helper:
                 self._login_helper._require_dept_list = False
                 if self._login_helper.is_browser_open:
                     self._login_helper.reset_detection()
 
-            # Kiểm tra JSESSIONID
-            jsessionid = self.entry_session.get().strip()
             if not jsessionid:
                 self._log("⚠ Chưa có JSESSIONID — hãy đăng nhập trước hoặc nhập thủ công.")
             else:
                 self._log("👉 Bấm nút [📥 Xuất Excel] để xuất file.")
                 self._log("👉 Hoặc click lớp trên browser → tool tự động xuất.")
         else:
+            # Ẩn frame excel, hiện frame upload
+            self.frame_excel.grid_forget()
+            self.frame_config.grid(row=2, column=0, padx=12, pady=4, sticky="ew")
+
             self.btn_excel_mode.configure(
                 text="📊 Chế độ Excel",
                 fg_color="#1a6b8a", hover_color="#14536b",
             )
-            self._log("📊 Chế độ Excel đã TẮT.")
-
-            # Ẩn bộ chọn chế độ xuất
-            self.seg_export_mode.grid_forget()
-
-            # Bật lại các trường upload
-            self.entry_class_name.configure(state="normal")
-            self.entry_folder.configure(state="normal")
-            self.entry_face_date.configure(state="normal")
+            self._log("📊 Đã quay về chế độ Upload.")
 
             # Khôi phục yêu cầu deptList cho chế độ upload
             if self._login_helper:
@@ -1111,36 +1172,45 @@ class FaceUploadApp(ctk.CTk):
         self.log_box.delete("1.0", "end")
         self._log("🗑 Log đã được xóa.")
 
+    # Prefix → tag map cho _log (O(1) lookup thay vì scan list mỗi lần)
+    _LOG_TAG_MAP = {}
+    for _tag, _prefixes in [
+        ("sep",     ["─", "━"]),
+        ("success", ["✅", "✔", "🎉"]),
+        ("error",   ["❌", "💥", "⛔"]),
+        ("warning", ["⚠", "⚠️"]),
+        ("skip",    ["⏭", "🔍"]),
+        ("pending", ["⏳", "⌛"]),
+        ("info",    ["📋", "📊", "📁", "👤", "🖼", "📡", "🎯", "📌", "🔒", "🏥", "📖",
+                     "🚀", "🔄", "ℹ", "💡", "👉", "📍", "📧", "📱", "🔐", "📂", "🔙"]),
+    ]:
+        for _p in _prefixes:
+            _LOG_TAG_MAP[_p] = _tag
+    del _tag, _prefixes, _p  # cleanup class scope
+
+    MAX_LOG_LINES = 1000  # Giới hạn dòng log để tránh chậm render
+
     def _log(self, message: str):
         """Ghi log có timestamp và màu sắc theo loại."""
         ts = datetime.now().strftime('%H:%M:%S')
         self.log_box.configure(state="normal")
 
-        # Xác định tag màu dựa vào nội dung
-        if message.startswith("─") or message.startswith("━"):
-            tag = "sep"
-        elif any(message.startswith(p) for p in ("✅", "✔")):
-            tag = "success"
-        elif any(message.startswith(p) for p in ("❌", "💥", "⛔")):
-            tag = "error"
-        elif any(message.startswith(p) for p in ("⚠", "⚠️")):
-            tag = "warning"
-        elif any(message.startswith(p) for p in ("⏭", "🔍")):
-            tag = "skip"
-        elif any(message.startswith(p) for p in ("⏳", "⌛")):
-            tag = "pending"
-        elif any(message.startswith(p) for p in ("📋", "📊", "📁", "👤", "🖼", "📡", "🎯", "📌", "🔒", "🏥", "📖")):
-            tag = "info"
-        elif any(message.startswith(p) for p in ("🚀", "🔄", "ℹ", "💡", "👉", "📍")):
-            tag = "info"
-        else:
-            tag = "normal"
+        # Xác định tag — thử ký tự đầu tiên (emoji thường 1-2 codepoint)
+        tag = "normal"
+        if message:
+            # Thử 1 char, rồi 2 chars (emoji có thể 2 codepoint)
+            tag = self._LOG_TAG_MAP.get(message[0],
+                    self._LOG_TAG_MAP.get(message[:2], "normal"))
 
-        # Timestamp xám nhạt
         self.log_box.insert("end", f"[{ts}] ", "ts")
-        # Nội dung với màu theo loại
         self.log_box.insert("end", f"{message}\n", tag)
         self.log_box.see("end")
+
+        # Trim log nếu quá dài — giữ render mượt
+        line_count = int(self.log_box.index('end-1c').split('.')[0])
+        if line_count > self.MAX_LOG_LINES:
+            trim = line_count - self.MAX_LOG_LINES
+            self.log_box.delete("1.0", f"{trim}.0")
 
 
 # =====================================================

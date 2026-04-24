@@ -32,6 +32,7 @@ Upload hàng loạt ảnh khuôn mặt (`.jpg`/`.jpeg`) cho học sinh lên hệ
 | **Auto Class Name** | Tự trích tên lớp từ response API |
 | **Smart Name Matching** | Đối chiếu tên file ↔ tên HS qua normalize + suffix matching + subset matching (khớp một phần) |
 | **2-Phase Upload** | Phase 1: upload an toàn. Phase 2: duyệt match yếu/mơ hồ |
+| **Xuất Excel** | Xuất danh sách tài khoản phụ huynh (Gmail hoặc SĐT) ra file `.xlsx` — giao diện riêng biệt |
 | **Dry Run** | Chế độ kiểm tra không upload thật |
 | **Skip Existing** | Bỏ qua HS đã có ảnh |
 | **Manual Fallback** | Nhập JSESSIONID + API URL bằng tay nếu auto không dùng được |
@@ -74,8 +75,11 @@ Tool_UppIMG/
 ├── matcher.py          # Đối chiếu tên file ↔ tên HS (StudentIndex)
 ├── name_utils.py       # Normalize tên tiếng Việt, bỏ dấu, tokenize
 ├── class_selector.py   # Validation cấu hình lớp, đoán tên lớp từ folder
+├── excel_exporter.py   # Xuất Excel tài khoản phụ huynh (Gmail/SĐT)
 ├── web_selectors.py    # CSS selectors + URL patterns cho web KeyTech
-├── test_matcher.py     # Unit tests cho matcher
+├── acset/              # Logo + icon
+├── CLAUDE.md           # Behavioral guidelines cho AI
+├── CONTEXT.md          # Context kỹ thuật cho AI đọc
 ├── requirements.txt    # Dependencies
 └── README.md           # File này
 ```
@@ -466,4 +470,3 @@ requests>=2.28.0        # HTTP client cho API calls
 customtkinter>=5.2.0    # Modern Tkinter UI
 playwright>=1.40.0      # Browser automation (optional - cho auto login)
 ```
-"# Tool_UppIMG---Keytech"  
