@@ -82,6 +82,25 @@ DEFAULT_PASSWORD = "ZHYT@2210"
 DEFAULT_CAPTCHA = "123"
 DEFAULT_FACE_END_DATE = "2029-12-31"
 
+COLOR_BG = "#101820"
+COLOR_SURFACE = "#18212c"
+COLOR_SURFACE_SOFT = "#202b38"
+COLOR_BORDER = "#2c3a4a"
+COLOR_TEXT_MUTED = "#9ca3af"
+COLOR_PRIMARY = "#2563eb"
+COLOR_PRIMARY_HOVER = "#1d4ed8"
+COLOR_SUCCESS = "#2d8a4e"
+COLOR_SUCCESS_HOVER = "#236b3e"
+COLOR_WARNING = "#d97706"
+COLOR_WARNING_HOVER = "#b45309"
+COLOR_DANGER = "#b83232"
+COLOR_DANGER_HOVER = "#8a2424"
+COLOR_NEUTRAL = "#4b5563"
+COLOR_NEUTRAL_HOVER = "#374151"
+
+PAD_X = 12
+PAD_Y = 8
+
 
 def resource_path(relative_path: str) -> str:
     """Lấy đường dẫn tài nguyên, tương thích với PyInstaller."""
@@ -150,8 +169,8 @@ class SplashScreen(ctk.CTkToplevel):
         # Subtitle
         self._sub_label = ctk.CTkLabel(
             main, text="KeyTech AI System",
-            font=ctk.CTkFont(size=12),
-            text_color="#888888",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#dbeafe",
         )
         self._sub_label.grid(row=2, column=0, pady=(0, 20))
 
@@ -175,6 +194,8 @@ class SplashScreen(ctk.CTkToplevel):
         """Tạo các frame với độ mờ tăng dần cho logo."""
         try:
             logo = Image.open(LOGO_PATH).convert("RGBA")
+            logo = ImageEnhance.Brightness(logo).enhance(1.22)
+            logo = ImageEnhance.Contrast(logo).enhance(1.08)
             logo = logo.resize((160, 160), Image.LANCZOS)
         except Exception:
             return
@@ -214,9 +235,10 @@ class FaceUploadApp(ctk.CTk):
         super().__init__()
 
         self.title(f"{APP_TITLE} v{APP_VERSION}")
-        self.geometry("860x780")
-        self.minsize(780, 680)
+        self.geometry("1120x860")
+        self.minsize(960, 760)
         self.resizable(True, True)
+        self.configure(fg_color=COLOR_BG)
 
         # Set window icon
         if os.path.exists(ICON_PATH):
@@ -254,43 +276,44 @@ class FaceUploadApp(ctk.CTk):
 
         # Header with mode switch
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.grid(row=0, column=0, padx=12, pady=(8, 4), sticky="ew")
+        header_frame.grid(row=0, column=0, padx=PAD_X, pady=(12, 6), sticky="ew")
         header_frame.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             header_frame, text=f"🎓 {APP_TITLE}",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color="#f8fafc",
         ).grid(row=0, column=0, sticky="w")
 
         self.btn_excel_mode = ctk.CTkButton(
-            header_frame, text="📊 Chế độ Excel", width=140, height=30,
+            header_frame, text="📊 Chế độ Excel", width=150, height=34,
             font=ctk.CTkFont(size=12, weight="bold"),
-            fg_color="#1a6b8a", hover_color="#14536b",
+            fg_color=COLOR_PRIMARY, hover_color=COLOR_PRIMARY_HOVER,
             command=self._on_toggle_excel_mode,
         )
         self.btn_excel_mode.grid(row=0, column=1, padx=(8, 0), sticky="e")
 
         # --- KHỐI A: Login ---
-        self.frame_login = ctk.CTkFrame(self)
-        self.frame_login.grid(row=1, column=0, padx=12, pady=4, sticky="ew")
+        self.frame_login = ctk.CTkFrame(self, fg_color=COLOR_SURFACE, border_width=1, border_color=COLOR_BORDER)
+        self.frame_login.grid(row=1, column=0, padx=PAD_X, pady=PAD_Y, sticky="ew")
         self.frame_login.grid_columnconfigure(1, weight=1)
         self._build_login_section(self.frame_login)
 
         # --- KHỐI B: Cấu hình lớp (Upload mode) ---
-        self.frame_config = ctk.CTkFrame(self)
-        self.frame_config.grid(row=2, column=0, padx=12, pady=4, sticky="ew")
+        self.frame_config = ctk.CTkFrame(self, fg_color=COLOR_SURFACE, border_width=1, border_color=COLOR_BORDER)
+        self.frame_config.grid(row=2, column=0, padx=PAD_X, pady=PAD_Y, sticky="ew")
         self.frame_config.grid_columnconfigure(1, weight=1)
         self._build_config_section(self.frame_config)
 
         # --- KHỐI B2: Excel mode (ẩn mặc định) ---
-        self.frame_excel = ctk.CTkFrame(self)
+        self.frame_excel = ctk.CTkFrame(self, fg_color=COLOR_SURFACE, border_width=1, border_color=COLOR_BORDER)
         self.frame_excel.grid_columnconfigure(1, weight=1)
         self._build_excel_section(self.frame_excel)
         # Không grid() → ẩn mặc định
 
         # --- KHỐI C: Header log + Log box ---
         log_header = ctk.CTkFrame(self, fg_color="transparent")
-        log_header.grid(row=3, column=0, padx=12, pady=(4, 0), sticky="ew")
+        log_header.grid(row=3, column=0, padx=PAD_X, pady=(6, 0), sticky="ew")
         log_header.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
@@ -301,9 +324,9 @@ class FaceUploadApp(ctk.CTk):
         ).grid(row=0, column=0, sticky="w")
 
         self.btn_clear_log = ctk.CTkButton(
-            log_header, text="🗑 Xóa log", width=80, height=22,
+            log_header, text="🗑 Xóa log", width=92, height=26,
             font=ctk.CTkFont(size=11),
-            fg_color="#444455", hover_color="#333344",
+            fg_color=COLOR_NEUTRAL, hover_color=COLOR_NEUTRAL_HOVER,
             command=self._on_clear_log,
         )
         self.btn_clear_log.grid(row=0, column=1, sticky="e")
@@ -311,8 +334,9 @@ class FaceUploadApp(ctk.CTk):
         self.log_box = ctk.CTkTextbox(
             self, font=ctk.CTkFont(family="Consolas", size=11),
             wrap="word", state="normal",
+            fg_color="#0b1220", border_width=1, border_color=COLOR_BORDER,
         )
-        self.log_box.grid(row=4, column=0, padx=12, pady=(2, 4), sticky="nsew")
+        self.log_box.grid(row=4, column=0, padx=PAD_X, pady=(2, 6), sticky="nsew")
 
         # Cấu hình tag màu cho log
         self.log_box.tag_config("success",  foreground="#4ade80")  # xanh lá
@@ -330,8 +354,9 @@ class FaceUploadApp(ctk.CTk):
         self.lbl_stats = ctk.CTkLabel(
             self, text="Chưa chạy", anchor="w",
             font=ctk.CTkFont(size=11), text_color="#aaaaaa",
+            fg_color=COLOR_SURFACE_SOFT, corner_radius=6,
         )
-        self.lbl_stats.grid(row=5, column=0, padx=12, pady=(0, 6), sticky="ew")
+        self.lbl_stats.grid(row=5, column=0, padx=PAD_X, pady=(0, 10), sticky="ew")
 
         self._log("🎓 Sẵn sàng. Đăng nhập hoặc dùng cấu hình thủ công.")
         if not PLAYWRIGHT_AVAILABLE:
@@ -346,23 +371,27 @@ class FaceUploadApp(ctk.CTk):
         pass  # Đã tắt vì logo hiện đè lên chữ trong log_box
 
     def _build_login_section(self, parent):
-        ctk.CTkLabel(parent, text="🔐 Đăng nhập", font=ctk.CTkFont(size=13, weight="bold")).grid(
-            row=0, column=0, padx=8, pady=(6, 2), sticky="w", columnspan=3)
+        parent.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            parent, text="🔐 Đăng nhập",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#f8fafc",
+        ).grid(row=0, column=0, padx=12, pady=(10, 4), sticky="w", columnspan=3)
 
         # Username
-        ctk.CTkLabel(parent, text="Username:", width=90, anchor="w").grid(
-            row=1, column=0, padx=(8, 4), pady=3, sticky="w")
-        self.entry_username = ctk.CTkEntry(parent, placeholder_text="Tên đăng nhập", width=200)
-        self.entry_username.grid(row=1, column=1, padx=0, pady=3, sticky="w")
+        ctk.CTkLabel(parent, text="Username:", width=110, anchor="w", text_color=COLOR_TEXT_MUTED).grid(
+            row=1, column=0, padx=(12, 8), pady=(4, 12), sticky="w")
+        self.entry_username = ctk.CTkEntry(parent, placeholder_text="Tên đăng nhập", height=32)
+        self.entry_username.grid(row=1, column=1, padx=0, pady=(4, 12), sticky="ew")
         self.entry_username.bind("<Return>", lambda e: self._on_login())
 
         # Buttons
         btn_frame = ctk.CTkFrame(parent, fg_color="transparent")
-        btn_frame.grid(row=1, column=2, padx=(8, 8), pady=3, sticky="e")
+        btn_frame.grid(row=1, column=2, padx=(12, 12), pady=(4, 12), sticky="e")
 
         self.btn_login = ctk.CTkButton(
             btn_frame, text="🔐 Đăng nhập", width=130, height=30,
-            fg_color="#2d8a4e", hover_color="#236b3e",
+            fg_color=COLOR_SUCCESS, hover_color=COLOR_SUCCESS_HOVER,
             command=self._on_login,
             state="disabled",
         )
@@ -370,21 +399,25 @@ class FaceUploadApp(ctk.CTk):
 
         ctk.CTkButton(
             btn_frame, text="✋ Thủ công", width=100, height=30,
-            fg_color="#555555", hover_color="#444444",
+            fg_color=COLOR_NEUTRAL, hover_color=COLOR_NEUTRAL_HOVER,
             command=self._on_manual_mode,
         ).grid(row=0, column=1, padx=(0, 6))
 
         self.btn_close_browser = ctk.CTkButton(
             btn_frame, text="🌐 Đóng browser", width=120, height=30,
-            fg_color="#8a4400", hover_color="#6b3500",
+            fg_color=COLOR_WARNING, hover_color=COLOR_WARNING_HOVER,
             command=self._on_close_browser,
             state="disabled",
         )
         self.btn_close_browser.grid(row=0, column=2)
 
     def _build_config_section(self, parent):
-        ctk.CTkLabel(parent, text="📚 Cấu hình lớp", font=ctk.CTkFont(size=13, weight="bold")).grid(
-            row=0, column=0, padx=8, pady=(6, 2), sticky="w", columnspan=3)
+        parent.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            parent, text="📚 Cấu hình lớp",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#f8fafc",
+        ).grid(row=0, column=0, padx=12, pady=(10, 6), sticky="w", columnspan=3)
 
         fields = [
             ("Base URL:", "entry_base_url", DEFAULT_BASE_URL),
@@ -395,32 +428,40 @@ class FaceUploadApp(ctk.CTk):
         ]
 
         for i, (label, attr, default) in enumerate(fields, 1):
-            ctk.CTkLabel(parent, text=label, width=100, anchor="w").grid(
-                row=i, column=0, padx=(8, 4), pady=2, sticky="w")
-            entry = ctk.CTkEntry(parent)
-            entry.grid(row=i, column=1, padx=0, pady=2, sticky="ew", columnspan=2)
+            ctk.CTkLabel(parent, text=label, width=120, anchor="w", text_color=COLOR_TEXT_MUTED).grid(
+                row=i, column=0, padx=(12, 8), pady=3, sticky="w")
+            entry_kwargs = {"height": 32}
+            if attr == "entry_session":
+                entry_kwargs["show"] = "*"
+                entry_kwargs["placeholder_text"] = "Dán JSESSIONID tại đây"
+            elif attr == "entry_api_url":
+                entry_kwargs["placeholder_text"] = "Tự nhận diện hoặc dán API List URL"
+            elif attr == "entry_class_name":
+                entry_kwargs["placeholder_text"] = "Tên lớp"
+            entry = ctk.CTkEntry(parent, **entry_kwargs)
+            entry.grid(row=i, column=1, padx=(0, 12), pady=3, sticky="ew", columnspan=2)
             if default:
                 entry.insert(0, default)
             setattr(self, attr, entry)
 
         # Folder ảnh row
         row_folder = len(fields) + 1
-        ctk.CTkLabel(parent, text="Folder ảnh:", width=100, anchor="w").grid(
-            row=row_folder, column=0, padx=(8, 4), pady=2, sticky="w")
+        ctk.CTkLabel(parent, text="Folder ảnh:", width=120, anchor="w", text_color=COLOR_TEXT_MUTED).grid(
+            row=row_folder, column=0, padx=(12, 8), pady=3, sticky="w")
 
         folder_frame = ctk.CTkFrame(parent, fg_color="transparent")
-        folder_frame.grid(row=row_folder, column=1, padx=0, pady=2, sticky="ew", columnspan=2)
+        folder_frame.grid(row=row_folder, column=1, padx=(0, 12), pady=3, sticky="ew", columnspan=2)
         folder_frame.grid_columnconfigure(0, weight=1)
 
-        self.entry_folder = ctk.CTkEntry(folder_frame, placeholder_text="Chọn thư mục ảnh")
+        self.entry_folder = ctk.CTkEntry(folder_frame, placeholder_text="Chọn thư mục ảnh", height=32)
         self.entry_folder.grid(row=0, column=0, padx=(0, 4), sticky="ew")
-        ctk.CTkButton(folder_frame, text="📂", width=40, command=self._browse_folder).grid(
+        ctk.CTkButton(folder_frame, text="📂", width=44, height=32, command=self._browse_folder).grid(
             row=0, column=1)
 
         # Options row
         row_opt = row_folder + 1
         opt_frame = ctk.CTkFrame(parent, fg_color="transparent")
-        opt_frame.grid(row=row_opt, column=0, padx=8, pady=4, sticky="w", columnspan=3)
+        opt_frame.grid(row=row_opt, column=1, padx=(0, 12), pady=(6, 4), sticky="w", columnspan=2)
 
         self.var_dry_run = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(opt_frame, text="🔍 Thử nghiệm", variable=self.var_dry_run,
@@ -433,10 +474,13 @@ class FaceUploadApp(ctk.CTk):
         # Action buttons row
         row_act = row_opt + 1
         act_frame = ctk.CTkFrame(parent, fg_color="transparent")
-        act_frame.grid(row=row_act, column=0, padx=8, pady=(4, 6), sticky="ew", columnspan=3)
+        act_frame.grid(row=row_act, column=0, padx=12, pady=(6, 12), sticky="ew", columnspan=3)
+        act_frame.grid_columnconfigure(5, weight=1)
 
         self.btn_check_api = ctk.CTkButton(
             act_frame, text="📡 Lấy API lớp", width=120, height=32,
+            fg_color=COLOR_PRIMARY, hover_color=COLOR_PRIMARY_HOVER,
+            text_color="#ffffff", text_color_disabled="#d1d5db",
             command=self._on_capture_api,
             state="disabled",
         )
@@ -444,7 +488,8 @@ class FaceUploadApp(ctk.CTk):
 
         self.btn_reset_detect = ctk.CTkButton(
             act_frame, text="🔄 Nhận diện lại lớp", width=140, height=32,
-            fg_color="#555555", hover_color="#444444",
+            fg_color=COLOR_NEUTRAL, hover_color=COLOR_NEUTRAL_HOVER,
+            text_color="#ffffff", text_color_disabled="#d1d5db",
             command=self._on_reset_detect,
             state="disabled",
         )
@@ -471,22 +516,22 @@ class FaceUploadApp(ctk.CTk):
         self.btn_start = ctk.CTkButton(
             act_frame, text="▶ Chạy", width=100, height=32,
             font=ctk.CTkFont(weight="bold"),
-            fg_color="#2d8a4e", hover_color="#236b3e",
+            fg_color=COLOR_SUCCESS, hover_color=COLOR_SUCCESS_HOVER,
             command=self._on_start,
         )
-        self.btn_start.grid(row=0, column=5, padx=(0, 6))
+        self.btn_start.grid(row=1, column=0, padx=(0, 6), pady=(8, 0))
 
         self.btn_stop = ctk.CTkButton(
             act_frame, text="⏹ Dừng", width=80, height=32,
-            fg_color="#b83232", hover_color="#8a2424",
+            fg_color=COLOR_DANGER, hover_color=COLOR_DANGER_HOVER,
+            text_color="#ffffff", text_color_disabled="#d1d5db",
             command=self._on_stop, state="disabled",
         )
-        self.btn_stop.grid(row=0, column=6, padx=(0, 6))
+        self.btn_stop.grid(row=1, column=1, padx=(0, 6), pady=(8, 0))
 
-        self.progress_bar = ctk.CTkProgressBar(act_frame, width=150, height=12)
-        self.progress_bar.grid(row=0, column=7, padx=(6, 0), sticky="ew")
+        self.progress_bar = ctk.CTkProgressBar(act_frame, height=12, progress_color=COLOR_SUCCESS)
+        self.progress_bar.grid(row=1, column=2, padx=(6, 0), pady=(8, 0), sticky="ew", columnspan=4)
         self.progress_bar.set(0)
-        act_frame.grid_columnconfigure(7, weight=1)
 
     # ===================================================
     # LOGIN
@@ -928,39 +973,40 @@ class FaceUploadApp(ctk.CTk):
         """Xây dựng giao diện riêng cho chế độ xuất Excel."""
         ctk.CTkLabel(
             parent, text="📊 Xuất Excel tài khoản phụ huynh",
-            font=ctk.CTkFont(size=13, weight="bold"),
-        ).grid(row=0, column=0, padx=8, pady=(6, 2), sticky="w", columnspan=3)
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#f8fafc",
+        ).grid(row=0, column=0, padx=12, pady=(10, 6), sticky="w", columnspan=3)
 
         # Base URL (dùng chung với entry_base_url ở frame_config, nên tạo label tham chiếu)
-        ctk.CTkLabel(parent, text="Base URL:", width=100, anchor="w").grid(
-            row=1, column=0, padx=(8, 4), pady=2, sticky="w")
+        ctk.CTkLabel(parent, text="Base URL:", width=120, anchor="w", text_color=COLOR_TEXT_MUTED).grid(
+            row=1, column=0, padx=(12, 8), pady=3, sticky="w")
         self.excel_lbl_base_url = ctk.CTkLabel(
             parent, text=DEFAULT_BASE_URL, anchor="w",
-            text_color="#aaaaaa", font=ctk.CTkFont(size=12),
+            text_color="#cbd5e1", font=ctk.CTkFont(size=12),
         )
-        self.excel_lbl_base_url.grid(row=1, column=1, padx=0, pady=2, sticky="w", columnspan=2)
+        self.excel_lbl_base_url.grid(row=1, column=1, padx=(0, 12), pady=3, sticky="ew", columnspan=2)
 
         # Session status
-        ctk.CTkLabel(parent, text="Session:", width=100, anchor="w").grid(
-            row=2, column=0, padx=(8, 4), pady=2, sticky="w")
+        ctk.CTkLabel(parent, text="Session:", width=120, anchor="w", text_color=COLOR_TEXT_MUTED).grid(
+            row=2, column=0, padx=(12, 8), pady=3, sticky="w")
         self.excel_lbl_session = ctk.CTkLabel(
             parent, text="Chưa đăng nhập", anchor="w",
             text_color="#f87171", font=ctk.CTkFont(size=12),
         )
-        self.excel_lbl_session.grid(row=2, column=1, padx=0, pady=2, sticky="w", columnspan=2)
+        self.excel_lbl_session.grid(row=2, column=1, padx=(0, 12), pady=3, sticky="ew", columnspan=2)
 
         # Lớp đã detect
-        ctk.CTkLabel(parent, text="Lớp:", width=100, anchor="w").grid(
-            row=3, column=0, padx=(8, 4), pady=2, sticky="w")
+        ctk.CTkLabel(parent, text="Lớp:", width=120, anchor="w", text_color=COLOR_TEXT_MUTED).grid(
+            row=3, column=0, padx=(12, 8), pady=3, sticky="w")
         self.excel_lbl_class = ctk.CTkLabel(
             parent, text="Chưa chọn lớp", anchor="w",
-            text_color="#aaaaaa", font=ctk.CTkFont(size=12),
+            text_color="#cbd5e1", font=ctk.CTkFont(size=12),
         )
-        self.excel_lbl_class.grid(row=3, column=1, padx=0, pady=2, sticky="w", columnspan=2)
+        self.excel_lbl_class.grid(row=3, column=1, padx=(0, 12), pady=3, sticky="ew", columnspan=2)
 
         # Chế độ xuất: Gmail / SĐT
-        ctk.CTkLabel(parent, text="Tên đăng nhập lấy theo: ", width=100, anchor="w").grid(
-            row=4, column=0, padx=(8, 4), pady=(6, 2), sticky="w")
+        ctk.CTkLabel(parent, text="Tài khoản theo:", width=120, anchor="w", text_color=COLOR_TEXT_MUTED).grid(
+            row=4, column=0, padx=(12, 8), pady=(8, 4), sticky="w")
 
         self.var_excel_export_mode = ctk.StringVar(value=EXPORT_MODE_GMAIL)
         self.seg_export_mode = ctk.CTkSegmentedButton(
@@ -970,12 +1016,12 @@ class FaceUploadApp(ctk.CTk):
             command=self._on_export_mode_changed,
             width=240, height=32,
             font=ctk.CTkFont(size=12, weight="bold"),
-            selected_color="#d4a017",
-            selected_hover_color="#b8860b",
-            unselected_color="#333355",
-            unselected_hover_color="#444466",
+            selected_color=COLOR_WARNING,
+            selected_hover_color=COLOR_WARNING_HOVER,
+            unselected_color=COLOR_SURFACE_SOFT,
+            unselected_hover_color=COLOR_NEUTRAL,
         )
-        self.seg_export_mode.grid(row=4, column=1, padx=0, pady=(6, 2), sticky="w", columnspan=2)
+        self.seg_export_mode.grid(row=4, column=1, padx=(0, 12), pady=(8, 4), sticky="w", columnspan=2)
         try:
             for btn_key in self.seg_export_mode._buttons_dict:
                 if btn_key == EXPORT_MODE_GMAIL:
@@ -987,11 +1033,12 @@ class FaceUploadApp(ctk.CTk):
 
         # Action buttons
         excel_act = ctk.CTkFrame(parent, fg_color="transparent")
-        excel_act.grid(row=5, column=0, padx=8, pady=(6, 6), sticky="ew", columnspan=3)
+        excel_act.grid(row=5, column=0, padx=12, pady=(8, 12), sticky="ew", columnspan=3)
+        excel_act.grid_columnconfigure(1, weight=1)
 
         self.btn_export_excel = ctk.CTkButton(
             excel_act, text="📥 Xuất Excel", width=140, height=34,
-            fg_color="#d4a017", hover_color="#b8860b",
+            fg_color=COLOR_WARNING, hover_color=COLOR_WARNING_HOVER,
             font=ctk.CTkFont(size=13, weight="bold"),
             command=self._on_export_accounts_excel,
         )
@@ -1001,8 +1048,9 @@ class FaceUploadApp(ctk.CTk):
             excel_act,
             text="💡 Click lớp trên browser → tool tự động xuất, hoặc bấm nút xuất thủ công.",
             font=ctk.CTkFont(size=11), text_color="#888888", anchor="w",
+            wraplength=620,
         )
-        self.excel_lbl_hint.grid(row=0, column=1, sticky="w")
+        self.excel_lbl_hint.grid(row=0, column=1, sticky="ew")
 
     def _on_toggle_excel_mode(self):
         """Chuyển đổi giữa giao diện Upload và Excel."""
@@ -1011,11 +1059,11 @@ class FaceUploadApp(ctk.CTk):
         if self._excel_mode:
             # Ẩn frame upload, hiện frame excel
             self.frame_config.grid_forget()
-            self.frame_excel.grid(row=2, column=0, padx=12, pady=4, sticky="ew")
+            self.frame_excel.grid(row=2, column=0, padx=PAD_X, pady=PAD_Y, sticky="ew")
 
             self.btn_excel_mode.configure(
                 text="🔙 Chế độ Upload",
-                fg_color="#d4a017", hover_color="#b8860b",
+                fg_color=COLOR_WARNING, hover_color=COLOR_WARNING_HOVER,
             )
 
             # Cập nhật thông tin hiển thị trên frame excel
@@ -1053,11 +1101,11 @@ class FaceUploadApp(ctk.CTk):
         else:
             # Ẩn frame excel, hiện frame upload
             self.frame_excel.grid_forget()
-            self.frame_config.grid(row=2, column=0, padx=12, pady=4, sticky="ew")
+            self.frame_config.grid(row=2, column=0, padx=PAD_X, pady=PAD_Y, sticky="ew")
 
             self.btn_excel_mode.configure(
                 text="📊 Chế độ Excel",
-                fg_color="#1a6b8a", hover_color="#14536b",
+                fg_color=COLOR_PRIMARY, hover_color=COLOR_PRIMARY_HOVER,
             )
             self._log("📊 Đã quay về chế độ Upload.")
 
@@ -1222,9 +1270,10 @@ class PendingReviewDialog(ctk.CTkToplevel):
     def __init__(self, parent, pending_items: list, on_confirm_callback):
         super().__init__(parent)
         self.title("⏳ Duyệt match yếu / mơ hồ")
-        self.geometry("900x600")
-        self.minsize(800, 500)
+        self.geometry("980x640")
+        self.minsize(860, 540)
         self.resizable(True, True)
+        self.configure(fg_color=COLOR_BG)
 
         self._pending = pending_items
         self._on_confirm = on_confirm_callback
@@ -1240,11 +1289,15 @@ class PendingReviewDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             self, text="⏳ Duyệt match yếu / mơ hồ",
-            font=ctk.CTkFont(size=16, weight="bold"),
-        ).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
+            font=ctk.CTkFont(size=17, weight="bold"),
+            text_color="#f8fafc",
+        ).grid(row=0, column=0, padx=16, pady=(14, 6), sticky="w")
 
-        scroll = ctk.CTkScrollableFrame(self, label_text="")
-        scroll.grid(row=1, column=0, padx=15, pady=5, sticky="nsew")
+        scroll = ctk.CTkScrollableFrame(
+            self, label_text="",
+            fg_color=COLOR_SURFACE, border_width=1, border_color=COLOR_BORDER,
+        )
+        scroll.grid(row=1, column=0, padx=16, pady=6, sticky="nsew")
         scroll.grid_columnconfigure(0, weight=1)
 
         weak_items = [p for p in self._pending if p['status'] == STATUS_PENDING_WEAK]
@@ -1263,7 +1316,7 @@ class PendingReviewDialog(ctk.CTkToplevel):
                 name = student.get('staffName', '')
                 sid = student.get('id', '')
 
-                frame = ctk.CTkFrame(scroll)
+                frame = ctk.CTkFrame(scroll, fg_color=COLOR_SURFACE_SOFT)
                 frame.grid(row=current_row, column=0, padx=5, pady=2, sticky="ew")
                 frame.grid_columnconfigure(1, weight=1)
 
@@ -1271,7 +1324,8 @@ class PendingReviewDialog(ctk.CTkToplevel):
                     row=0, column=0, padx=(8, 4), pady=6)
                 ctk.CTkLabel(frame, text=f"📄 {item['file_name']}  →  {name}  |  ID: {sid}",
                               anchor="w", font=ctk.CTkFont(family="Consolas", size=11),
-                              ).grid(row=0, column=1, padx=(0, 8), pady=6, sticky="w")
+                              wraplength=760,
+                              ).grid(row=0, column=1, padx=(0, 8), pady=6, sticky="ew")
 
                 self._weak_vars.append((item, var))
                 current_row += 1
@@ -1283,13 +1337,14 @@ class PendingReviewDialog(ctk.CTkToplevel):
             current_row += 1
 
             for item in ambig_items:
-                frame = ctk.CTkFrame(scroll)
+                frame = ctk.CTkFrame(scroll, fg_color=COLOR_SURFACE_SOFT)
                 frame.grid(row=current_row, column=0, padx=5, pady=4, sticky="ew")
                 frame.grid_columnconfigure(1, weight=1)
 
                 ctk.CTkLabel(frame, text=f"📄 {item['file_name']}",
                               font=ctk.CTkFont(family="Consolas", size=11), anchor="w",
-                              ).grid(row=0, column=0, padx=(8, 4), pady=(6, 2), sticky="w", columnspan=2)
+                              wraplength=760,
+                              ).grid(row=0, column=0, padx=(8, 4), pady=(6, 2), sticky="ew", columnspan=2)
 
                 options = ["-- Bỏ qua --"]
                 for c in item['candidate_matches']:
@@ -1297,31 +1352,32 @@ class PendingReviewDialog(ctk.CTkToplevel):
 
                 combo_var = ctk.StringVar(value=options[0])
                 ctk.CTkComboBox(frame, values=options, variable=combo_var,
-                                 width=400, font=ctk.CTkFont(size=11), state="readonly",
-                                 ).grid(row=1, column=0, padx=(8, 8), pady=(2, 6), sticky="w", columnspan=2)
+                                 width=520, font=ctk.CTkFont(size=11), state="readonly",
+                                 ).grid(row=1, column=0, padx=(8, 8), pady=(2, 8), sticky="w", columnspan=2)
 
                 self._ambig_combos.append((item, combo_var))
                 current_row += 1
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=2, column=0, padx=15, pady=10, sticky="ew")
+        btn_frame.grid(row=2, column=0, padx=16, pady=(8, 14), sticky="ew")
+        btn_frame.grid_columnconfigure(2, weight=1)
 
         if weak_items:
             ctk.CTkButton(btn_frame, text="☑ Chọn tất cả", width=120,
                            command=lambda: [v.set(True) for _, v in self._weak_vars]).grid(
                 row=0, column=0, padx=(0, 6))
             ctk.CTkButton(btn_frame, text="☐ Bỏ chọn", width=100,
-                           fg_color="#555", hover_color="#444",
+                           fg_color=COLOR_NEUTRAL, hover_color=COLOR_NEUTRAL_HOVER,
                            command=lambda: [v.set(False) for _, v in self._weak_vars]).grid(
                 row=0, column=1, padx=(0, 6))
 
         ctk.CTkButton(btn_frame, text="▶ Chạy tiếp", width=140, height=34,
                        font=ctk.CTkFont(weight="bold"),
-                       fg_color="#2d8a4e", hover_color="#236b3e",
+                       fg_color=COLOR_SUCCESS, hover_color=COLOR_SUCCESS_HOVER,
                        command=self._on_run).grid(row=0, column=3, padx=(0, 6))
 
         ctk.CTkButton(btn_frame, text="⏭ Bỏ qua tất cả", width=130, height=34,
-                       fg_color="#b83232", hover_color="#8a2424",
+                       fg_color=COLOR_DANGER, hover_color=COLOR_DANGER_HOVER,
                        command=self._on_skip_all).grid(row=0, column=4)
 
     def _apply_selections(self):
